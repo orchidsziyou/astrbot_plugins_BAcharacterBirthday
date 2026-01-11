@@ -334,7 +334,77 @@ def get_most_recent_birthday_character() -> str:
         return f"最近的生日是 {nearest_birthday['name']}，还有 {nearest_birthday['days_until']} 天 ({nearest_birthday['birthday'].strftime('%m月%d日')})"
 
 
+def find_character_by_name_fuzzy(name):
+    """模糊匹配查找角色"""
+    global characters
+    if not characters:
+        return []
 
+    # 查找名称中包含指定字符串的角色
+    related_character = [character for character in characters if name in character['name']]
+    return related_character
+
+def get_character_birthday_with_name(name):
+    global characters
+    if not characters:
+        return "暂无角色生日数据"
+
+    # 模糊匹配角色
+    matched_characters = find_character_by_name_fuzzy(name)
+    if not matched_characters:
+        return f"未找到包含 '{name}' 的角色"
+
+    from datetime import datetime
+    now = datetime.now()
+    current_year = now.year
+    current_date = now.date()
+
+    # 存储匹配角色的生日信息
+    upcoming_birthdays = []
+
+    for character in matched_characters:
+        birthday_str = character['birthday']
+        # 解析生日字符串 "M月D日" 或 "MM月DD日"
+        import re
+        match = re.match(r'(\d+)月(\d+)日', birthday_str)
+        if match:
+            month = int(match.group(1))
+            day = int(match.group(2))
+
+            # 创建今年的生日日期
+            try:
+                birthday_this_year = datetime(current_year, month, day).date()
+
+                # 如果今年的生日已过，则计算明年的生日
+                if birthday_this_year < current_date:
+                    birthday_next_year = datetime(current_year + 1, month, day).date()
+                    days_until = (birthday_next_year - current_date).days
+                    upcoming_birthdays.append({
+                        'name': character['name'],
+                        'birthday': birthday_next_year,
+                        'days_until': days_until
+                    })
+                else:
+                    days_until = (birthday_this_year - current_date).days
+                    upcoming_birthdays.append({
+                        'name': character['name'],
+                        'birthday': birthday_this_year,
+                        'days_until': days_until
+                    })
+            except ValueError:
+                # 处理无效日期（如2月30日）
+                continue
+
+    if not upcoming_birthdays:
+        return f"匹配到的角色 '{name}' 暂无可计算的生日数据"
+
+    # 按照距离天数排序，找出最近的生日
+    nearest_birthday = min(upcoming_birthdays, key=lambda x: x['days_until'])
+
+    if nearest_birthday['days_until'] == 0:
+        return f"今天就是 {nearest_birthday['name']} 的生日！"
+    else:
+        return f"匹配到的角色中最近的生日是 {nearest_birthday['name']}，还有 {nearest_birthday['days_until']} 天 ({nearest_birthday['birthday'].strftime('%m月%d日')})"
 
 @register("BAcharacterBirthday", "orchidsziyou", "一个简单的 BA角色生日 插件", "1.0.0")
 class MyPlugin(Star):
@@ -422,5 +492,11 @@ class MyPlugin(Star):
     async def jm_recent_command(self, event: AstrMessageEvent):
         """ 这是一个 最近生日 指令"""
         result = get_most_recent_birthday_character()
+        yield event.plain_result(result)
+
+    @ba_command_group.command("search")
+    async def jm_recent_fuzzy_command(self, event: AstrMessageEvent, name: str):
+        """模糊匹配最近生日指令"""
+        result = get_character_birthday_with_name(name)
         yield event.plain_result(result)
 

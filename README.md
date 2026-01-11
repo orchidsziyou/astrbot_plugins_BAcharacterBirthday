@@ -35,4 +35,5 @@ pip install jmcomic
 1./ba addchara name<角色名称> date<x月x日>    : 添加角色生日  
 2./ba delchara name<角色名称>   : 删除角色生日  
 3./ba recent   : 获取距离当前日期最近的的生日角色    
+4./ba search name<角色名称>   : 搜索包含角色名称的生日角色（模糊匹配）
 
