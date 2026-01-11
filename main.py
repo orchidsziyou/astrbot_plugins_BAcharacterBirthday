@@ -223,6 +223,118 @@ async def send_daily_birthday_message(context, botid):
                 print(f"发送纯文字消息失败: {e}")
 
 
+def add_character_to_json(name: str, birthday: str) -> bool:
+    """向 birthday.json 添加新角色"""
+    try:
+        # 读取现有数据
+        with open(birthday_data_path, 'r', encoding='utf-8') as file:
+            data = json.load(file)
+
+        # 检查是否已存在相同名称的角色
+        for character in data['charater_birthday']:
+            if character['name'] == name:
+                print(f"角色 {name} 已存在")
+                return False
+
+        # 添加新角色
+        new_character = {
+            "name": name,
+            "birthday": birthday
+        }
+        data['charater_birthday'].append(new_character)
+
+        # 保存回文件
+        with open(birthday_data_path, 'w', encoding='utf-8') as file:
+            json.dump(data, file, ensure_ascii=False, indent=2)
+
+        return True
+    except Exception as e:
+        print(f"添加角色失败: {e}")
+        return False
+
+
+def del_character_from_json(name):
+    try:
+        # 读取现有数据
+        with open(birthday_data_path, 'r', encoding='utf-8') as file:
+            data = json.load(file)
+
+        # 查找并删除指定名称的角色
+        original_length = len(data['charater_birthday'])
+        data['charater_birthday'] = [char for char in data['charater_birthday'] if char['name'] != name]
+
+        # 检查是否有角色被删除
+        if len(data['charater_birthday']) == original_length:
+            print(f"未找到角色 {name}")
+            return False  # 没有找到要删除的角色
+
+        # 保存回文件
+        with open(birthday_data_path, 'w', encoding='utf-8') as file:
+            json.dump(data, file, ensure_ascii=False, indent=2)
+
+        print(f"成功删除角色：{name}")
+        return True
+    except Exception as e:
+        print(f"删除角色失败: {e}")
+        return False
+
+
+def get_most_recent_birthday_character() -> str:
+    global characters
+    if not characters:
+        return "暂无角色生日数据"
+
+    now = datetime.now()
+    current_year = now.year
+    current_date = now.date()
+    upcoming_birthdays = []
+
+    for character in characters:
+        birthday_str = character['birthday']
+        # 解析生日字符串 "M月D日" 或 "MM月DD日"
+        import re
+        match = re.match(r'(\d+)月(\d+)日', birthday_str)
+        if match:
+            month = int(match.group(1))
+            day = int(match.group(2))
+
+            # 创建今年的生日日期
+            try:
+                birthday_this_year = datetime(current_year, month, day).date()
+
+                # 如果今年的生日已过，则计算明年的生日
+                if birthday_this_year < current_date:
+                    birthday_next_year = datetime(current_year + 1, month, day).date()
+                    days_until = (birthday_next_year - current_date).days
+                    upcoming_birthdays.append({
+                        'name': character['name'],
+                        'birthday': birthday_next_year,
+                        'days_until': days_until
+                    })
+                else:
+                    days_until = (birthday_this_year - current_date).days
+                    upcoming_birthdays.append({
+                        'name': character['name'],
+                        'birthday': birthday_this_year,
+                        'days_until': days_until
+                    })
+            except ValueError:
+                # 处理无效日期（如2月30日）
+                continue
+
+    if not upcoming_birthdays:
+        return "暂无可计算的生日数据"
+
+        # 按照距离天数排序，找出最近的生日
+    nearest_birthday = min(upcoming_birthdays, key=lambda x: x['days_until'])
+
+    if nearest_birthday['days_until'] == 0:
+        return f"今天是 {nearest_birthday['name']} 的生日！"
+    else:
+        return f"最近的生日是 {nearest_birthday['name']}，还有 {nearest_birthday['days_until']} 天 ({nearest_birthday['birthday'].strftime('%m月%d日')})"
+
+
+
 
 @register("BAcharacterBirthday", "orchidsziyou", "一个简单的 BA角色生日 插件", "1.0.0")
 class MyPlugin(Star):
@@ -277,3 +389,38 @@ class MyPlugin(Star):
         umo = event.unified_msg_origin
         remove_unified_msg(umo)
         yield event.plain_result(f"删除成功")
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @ba_command_group.command("addchara")
+    async def jm_addchara_command(self, event: AstrMessageEvent,name:str,date:str):
+        """ 这是一个 添加角色生日 指令"""
+        import re
+        if not re.match(r'\d+月\d+日', date):
+            yield event.plain_result("日期格式错误！正确格式：MM月DD日")
+            return
+        success = add_character_to_json(name, date)
+        if success:
+            yield event.plain_result(f"添加角色成功")
+        else:
+            yield event.plain_result(f"添加角色失败")
+
+        get_birthday_data() # 更新数据
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @ba_command_group.command("delchara")
+    async def jm_delchara_command(self, event: AstrMessageEvent,name:str):
+        """ 这是一个 删除角色生日 指令"""
+        success = del_character_from_json(name)
+        if success:
+            yield event.plain_result(f"删除角色成功")
+        else:
+            yield event.plain_result(f"删除角色失败")
+
+        get_birthday_data()  # 更新数据
+
+    @ba_command_group.command("recent")
+    async def jm_recent_command(self, event: AstrMessageEvent):
+        """ 这是一个 最近生日 指令"""
+        result = get_most_recent_birthday_character()
+        yield event.plain_result(result)
+
