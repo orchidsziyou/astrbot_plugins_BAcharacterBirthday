@@ -11,7 +11,7 @@ from jmcomic import create_option_by_file, JmOption, JmSearchPage, JmAlbumDetail
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
-from astrbot.core.message.components import Node, Plain, Image
+from astrbot.core.message.components import Node, Plain, Image, Nodes
 from astrbot.core.star.filter.permission import PermissionType
 from data.plugins.astrbot_plugins_BAcharacterBirthday.ScheduledTask import add_unified_msg, remove_unified_msg, \
     get_unified_msg
@@ -137,6 +137,7 @@ async def send_daily_birthday_message(context, botid):
 
     from astrbot.api.event import MessageChain
     message_chain = MessageChain()
+    all_node=[]
 
     birthday_name_str = ""
     for character in character_name:
@@ -152,7 +153,7 @@ async def send_daily_birthday_message(context, botid):
             Plain("为了庆祝她们生日，下面随机推荐一本本子：")
         ]
     )
-    message_chain.chain.append(time_node)
+    all_node.append(time_node)
 
     for i in range(count):
         node = Node(
@@ -164,7 +165,7 @@ async def send_daily_birthday_message(context, botid):
                 Plain(f"tag: {tag_list[i]}\n"),
             ]
         )
-        message_chain.chain.append(node)
+        all_node.append(node)
 
         if album_list[i]=="没找到本子":
             continue
@@ -178,10 +179,14 @@ async def send_daily_birthday_message(context, botid):
                     Image.fromFileSystem(pic_path)
                 ]
             )
-            message_chain.chain.append(pic_node)
+            all_node.append(pic_node)
 
     for umo in umos:
         try:
+            resNode = Nodes(
+                nodes=all_node
+            )
+            message_chain.chain = [resNode]
             await context.send_message(umo, message_chain)
         except Exception as e:
             print(f"发送消息失败: {e}")
@@ -189,6 +194,7 @@ async def send_daily_birthday_message(context, botid):
             #发送纯文字版本的
             from astrbot.api.event import MessageChain
             message_chain_text = MessageChain()
+            all_node=[]
 
             birthday_name_str = ""
             for character in character_name:
@@ -204,7 +210,7 @@ async def send_daily_birthday_message(context, botid):
                     Plain("为了庆祝她们生日，下面随机推荐一本本子：")
                 ]
             )
-            message_chain_text.chain.append(time_node)
+            all_node.append(time_node)
 
             for i in range(count):
                 node = Node(
@@ -216,8 +222,12 @@ async def send_daily_birthday_message(context, botid):
                         Plain(f"tag: {tag_list[i]}\n"),
                     ]
                 )
-                message_chain_text.chain.append(node)
+                all_node.append(node)
             try:
+                resNode = Nodes(
+                    nodes=all_node
+                )
+                message_chain.chain = [resNode]
                 await context.send_message(umo, message_chain_text)
             except Exception as e:
                 print(f"发送纯文字消息失败: {e}")
